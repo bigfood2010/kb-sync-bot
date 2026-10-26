@@ -1,0 +1,4 @@
+requests==2.34.2
+beautifulsoup4==4.15.0
+markdownify==1.2.3
+google-genai==2.33.0
