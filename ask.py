@@ -11,7 +11,7 @@ SYSTEM_PROMPT = """You are OptiBot, the customer-support bot for OptiSigns.com.
 • Max 5 bullet points; else link to the doc.
 • Cite up to 3 "Article URL:" lines per reply."""
 
-MODEL = os.environ.get("MODEL", "gemini-3.1-flash-lite")
+MODEL = os.environ.get("MODEL", "gemini-3.8-flash")
 DEFAULT_QUESTION = "How do I add a YouTube video?"
 
 
