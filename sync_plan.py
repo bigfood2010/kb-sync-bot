@@ -7,6 +7,7 @@ class SyncPlan:
     updated: list = field(default_factory=list)
     skipped: list = field(default_factory=list)
     deleted: list = field(default_factory=list)
+    deferred: list = field(default_factory=list)
     estimated_chunks: int = 0
 
 

@@ -1,4 +1,5 @@
 import os
+import re
 
 import pytest
 
@@ -40,7 +41,8 @@ def test_markdown_keeps_structure_and_drops_noise():
     assert "base64" not in markdown and "QR code" in markdown
     assert "![screen](https://cdn.example.com/a.png)" in markdown
     assert "b.png" not in markdown and "c.png" not in markdown
-    assert "Click Save" in markdown and "\xa0" not in markdown and "\n### \n" not in markdown
+    assert "Click Save" in markdown and "\xa0" not in markdown
+    assert not re.search(r"^#{1,6}\s*$", markdown, re.MULTILINE)
 
 
 def test_slug_is_last_url_segment():
@@ -128,6 +130,26 @@ class _FakeSession:
 
     def get(self, url, timeout):
         return self.responses.pop(0)
+
+
+def test_sync_removes_copies_left_by_an_interrupted_update():
+    documents = InMemoryDocuments(_stored("a", "old"), _stored("a", "new"), StoredDocument("a", "new", "a@new-2"))
+    plan = Store(documents).sync([_article("a", "new")])
+    assert plan.skipped == ["a"] and [document.content_hash for document in documents.list()] == ["new"]
+
+
+def test_sync_defers_uploads_after_deadline():
+    documents = InMemoryDocuments(_stored("changed", "old"))
+    plan = Store(documents).sync([_article("changed", "new"), _article("fresh", "1")], deadline=0)
+    assert plan.deferred == ["fresh", "changed"] and not (plan.added or plan.updated)
+    assert documents.calls == [] and list(documents.documents) == ["changed@old"]
+
+
+def test_cleanup_skips_code_blocks():
+    body = "<pre><code>a\xa0b\n###\n</code></pre><img alt='My Screen (1).PNG' src='x'>"
+    article = {"title": "T", "html_url": "u", "body": body}
+    markdown = help_center.article_to_markdown(article)
+    assert "a\xa0b\n###" in markdown and "Screen" not in markdown
 
 
 def test_fetch_retries_rate_limit_and_follows_pages():

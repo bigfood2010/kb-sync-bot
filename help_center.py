@@ -9,7 +9,8 @@ from markdownify import MarkdownConverter
 
 ARTICLES_URL = "https://support.optisigns.com/api/v2/help_center/en-us/articles.json?per_page=100"
 MAX_RETRIES = 5
-IMAGE_FILE_NAME = re.compile(r"[\w.-]+\.(png|jpe?g|gif|webp|svg)", re.IGNORECASE)
+IMAGE_FILE_NAME = re.compile(r".*\.(png|jpe?g|gif|webp|svg)", re.IGNORECASE)
+CODE_FENCE = re.compile(r"(```.*?```)", re.DOTALL)
 EMPTY_HEADING = re.compile(r"^#{1,6}[ \t]*$", re.MULTILINE)
 
 
@@ -62,8 +63,9 @@ def article_to_markdown(article):
     for tag in soup(["script", "style"]):
         tag.decompose()
     converter = _HelpCenterConverter(heading_style="ATX", bullets="-", table_infer_header=True)
-    body = EMPTY_HEADING.sub("", converter.convert_soup(soup).replace("\xa0", " "))
-    body = re.sub(r"\n{3,}", "\n\n", body).strip()
+    parts = CODE_FENCE.split(converter.convert_soup(soup))
+    parts[::2] = [EMPTY_HEADING.sub("", part.replace("\xa0", " ")) for part in parts[::2]]  # odd parts are code
+    body = re.sub(r"\n{3,}", "\n\n", "".join(parts)).strip()
     return f"# {article['title']}\n\nArticle URL: {article['html_url']}\n\n{body}\n"
 
 

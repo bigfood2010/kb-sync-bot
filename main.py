@@ -2,6 +2,7 @@ import json
 import os
 import signal
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,13 +13,16 @@ from file_search_store import CHUNK_OVERLAP_TOKENS, CHUNK_SIZE_TOKENS, Store, op
 
 # The platform never stops a hung job. 0 disables the limit.
 TIMEOUT_SECONDS = int(os.environ.get("TIMEOUT_SECONDS", 15 * 60))
+# Uploads stop this long before the hard limit, so the run summary still gets published.
+SUMMARY_MARGIN_SECONDS = 120
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "data/articles"))
 
 
 def main():
+    deadline = time.monotonic() + TIMEOUT_SECONDS - SUMMARY_MARGIN_SECONDS if TIMEOUT_SECONDS else None
     documents = open_gemini_documents()
     articles = scrape_articles_to_markdown()
-    plan = Store(documents).sync(articles)
+    plan = Store(documents).sync(articles, deadline)
     summary = build_run_summary(plan, articles)
     print(json.dumps(summary, indent=2))
     publish_run_summary(summary)
@@ -40,6 +44,7 @@ def build_run_summary(plan, articles):
         "updated": len(plan.updated),
         "skipped": len(plan.skipped),
         "deleted": len(plan.deleted),
+        "deferred": len(plan.deferred),
         "files_embedded": len(plan.added) + len(plan.updated),
         "chunks_embedded_estimated": plan.estimated_chunks,
         "chunk_config": {"max_tokens_per_chunk": CHUNK_SIZE_TOKENS, "max_overlap_tokens": CHUNK_OVERLAP_TOKENS},
