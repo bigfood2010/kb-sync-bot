@@ -1,6 +1,8 @@
 import io
 import os
+import sys
 import time
+from collections import defaultdict
 from dataclasses import dataclass
 
 from google import genai
@@ -12,6 +14,7 @@ CHUNK_SIZE_TOKENS = 512
 CHUNK_OVERLAP_TOKENS = 64
 CHARS_PER_TOKEN = 3.5
 POLL_SECONDS = 2
+UPLOAD_TIMEOUT_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -27,20 +30,47 @@ class Store:
     def __init__(self, documents):
         self._documents = documents
 
-    def sync(self, articles):
+    def sync(self, articles, deadline=None):
         # Expects the complete Article list: anything missing from it is deleted.
-        stored = {document.slug: document for document in self._documents.list()}
+        # Uploads stop after the monotonic deadline. Deferred Articles stay changed, so the next run picks them up.
+        local_hashes = {article.slug: article.content_hash for article in articles}
+        stored = defaultdict(list)
+        for document in self._documents.list():
+            stored[document.slug].append(document)
         plan = build_sync_plan(
-            local_hashes={article.slug: article.content_hash for article in articles},
-            stored_hashes={slug: document.content_hash for slug, document in stored.items()},
+            local_hashes=local_hashes,
+            stored_hashes={slug: _current_hash(copies, local_hashes.get(slug)) for slug, copies in stored.items()},
         )
+        if len(plan.deleted) * 2 > len(stored):
+            # An empty or broken fetch must not wipe the store.
+            raise RuntimeError(f"Refusing to delete {len(plan.deleted)} of {len(stored)} stored Articles")
         by_slug = {article.slug: article for article in articles}
         for slug in plan.added + plan.updated:
-            self._documents.upload(by_slug[slug])
-            if slug in stored:
-                self._documents.delete(stored[slug].name)  # only after the new copy is live
+            if deadline is not None and time.monotonic() > deadline:
+                plan.deferred.append(slug)
+                continue
+            try:
+                self._documents.upload(by_slug[slug])
+            except TimeoutError:
+                raise
+            except Exception as error:
+                print(f"Warning: upload failed for {slug}: {error}", file=sys.stderr)
+                plan.failed.append(slug)
+                continue
+            for document in stored[slug]:
+                self._documents.delete(document.name)  # only after the new copy is live
+        pending = set(plan.deferred + plan.failed)
+        plan.added = [slug for slug in plan.added if slug not in pending]
+        plan.updated = [slug for slug in plan.updated if slug not in pending]
+        for slug in plan.skipped:
+            # Leftovers of an interrupted update: an extra copy of the same Article.
+            duplicates = [document for document in stored[slug] if document.content_hash != local_hashes[slug]]
+            duplicates += [document for document in stored[slug] if document.content_hash == local_hashes[slug]][1:]
+            for document in duplicates:
+                self._documents.delete(document.name)
         for slug in plan.deleted:
-            self._documents.delete(stored[slug].name)
+            for document in stored[slug]:
+                self._documents.delete(document.name)
         plan.estimated_chunks = sum(_estimate_chunk_count(by_slug[slug].markdown) for slug in plan.added + plan.updated)
         return plan
 
@@ -78,7 +108,10 @@ class GeminiDocuments:
                 },
             },
         )
+        give_up_at = time.monotonic() + UPLOAD_TIMEOUT_SECONDS
         while not operation.done:
+            if time.monotonic() > give_up_at:
+                raise RuntimeError(f"Upload for {article.slug} still running after {UPLOAD_TIMEOUT_SECONDS} seconds")
             time.sleep(POLL_SECONDS)
             operation = self.client.operations.get(operation)
         if operation.error:
@@ -104,3 +137,8 @@ def _estimate_chunk_count(markdown):
     if tokens <= CHUNK_SIZE_TOKENS:
         return 1
     return int(-(-(tokens - CHUNK_OVERLAP_TOKENS) // (CHUNK_SIZE_TOKENS - CHUNK_OVERLAP_TOKENS)))
+
+
+def _current_hash(documents, local_hash):
+    hashes = [document.content_hash for document in documents]
+    return local_hash if local_hash in hashes else hashes[0]

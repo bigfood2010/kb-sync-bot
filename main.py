@@ -2,7 +2,8 @@ import json
 import os
 import signal
 import sys
-from datetime import datetime, timezone
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
@@ -12,16 +13,23 @@ from file_search_store import CHUNK_OVERLAP_TOKENS, CHUNK_SIZE_TOKENS, Store, op
 
 # The platform never stops a hung job. 0 disables the limit.
 TIMEOUT_SECONDS = int(os.environ.get("TIMEOUT_SECONDS", 15 * 60))
+# Uploads stop this long before the hard limit, so the run summary still gets published.
+SUMMARY_MARGIN_SECONDS = 120
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "data/articles"))
 
 
 def main():
+    if TIMEOUT_SECONDS < 0 or 0 < TIMEOUT_SECONDS <= SUMMARY_MARGIN_SECONDS:
+        raise SystemExit(f"TIMEOUT_SECONDS must be 0 or above {SUMMARY_MARGIN_SECONDS}")
+    deadline = time.monotonic() + TIMEOUT_SECONDS - SUMMARY_MARGIN_SECONDS if TIMEOUT_SECONDS else None
     documents = open_gemini_documents()
     articles = scrape_articles_to_markdown()
-    plan = Store(documents).sync(articles)
+    plan = Store(documents).sync(articles, deadline)
     summary = build_run_summary(plan, articles)
     print(json.dumps(summary, indent=2))
     publish_run_summary(summary)
+    if plan.failed:
+        raise SystemExit(f"{len(plan.failed)} uploads failed")
 
 
 def scrape_articles_to_markdown():
@@ -34,12 +42,14 @@ def scrape_articles_to_markdown():
 
 def build_run_summary(plan, articles):
     return {
-        "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "articles_fetched": len(articles),
         "added": len(plan.added),
         "updated": len(plan.updated),
         "skipped": len(plan.skipped),
         "deleted": len(plan.deleted),
+        "deferred": len(plan.deferred),
+        "failed": len(plan.failed),
         "files_embedded": len(plan.added) + len(plan.updated),
         "chunks_embedded_estimated": plan.estimated_chunks,
         "chunk_config": {"max_tokens_per_chunk": CHUNK_SIZE_TOKENS, "max_overlap_tokens": CHUNK_OVERLAP_TOKENS},
