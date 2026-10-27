@@ -56,6 +56,12 @@ First load: 415 articles, 411 then 4 (one article carried a 125 KB inline base64
 
 Daily run summary: https://gist.github.com/bigfood2010/4b0d782f317072fcc0b69381125bded8 (revisions = history)
 
+## Assistant
+
+System prompt set verbatim in Google AI Studio and in `ask.py`. The AI Studio Playground offers no File Search tool, so the store is queried through the API.
+
+![OptiBot system instructions in AI Studio](docs/ai-studio-system-prompt.png)
+
 ## Sample answer
 
 ![How do I add a YouTube video?](docs/answer.png)
