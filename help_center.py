@@ -34,7 +34,7 @@ def _get_page(session, url):
 
 class _HelpCenterConverter(MarkdownConverter):
     def convert_img(self, element, text, parent_tags):
-        if element.get("src", "").startswith("data:"):  # inline base64, up to 125 KB on one line
+        if element.get("src", "").startswith("data:"):  # inline base64 carries no text
             return element.get("alt", "")
         return super().convert_img(element, text, parent_tags)
 
