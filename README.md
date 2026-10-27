@@ -29,6 +29,8 @@ python ask.py "How do I add a YouTube video?"
 pytest -q
 ```
 
+Each run writes every article to `data/articles/<id>-<slug>.md`. Three samples (links, table, code block) are in `docs/samples/`.
+
 Full first load (415 articles) takes longer than 15 min: run it once with `TIMEOUT_SECONDS=0`.
 
 ## Design
