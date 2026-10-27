@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-CHARS_PER_TOKEN = 3.5  # median of countTokens on 40 real articles
+CHARS_PER_TOKEN = 3.5
 
 
 @dataclass

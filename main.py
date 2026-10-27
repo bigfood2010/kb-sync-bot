@@ -12,7 +12,7 @@ import file_search_store
 import help_center
 from sync_plan import build_sync_plan, estimate_chunk_count
 
-# App Platform never stops a hung job. 0 disables the limit for the first full load.
+# The platform never stops a hung job. 0 disables the limit.
 TIMEOUT_SECONDS = int(os.environ.get("TIMEOUT_SECONDS", 15 * 60))
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "data/articles"))
 
