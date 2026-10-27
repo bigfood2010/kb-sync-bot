@@ -1,9 +1,7 @@
 import os
 import sys
 
-from google import genai
-
-import file_search_store
+from file_search_store import open_gemini_documents
 
 SYSTEM_PROMPT = """You are OptiBot, the customer-support bot for OptiSigns.com.
 • Tone: helpful, factual, concise.
@@ -16,12 +14,12 @@ DEFAULT_QUESTION = "How do I add a YouTube video?"
 
 
 def ask_optibot(question):
-    client = genai.Client(api_key=os.environ.get("API_KEY") or os.environ.get("GEMINI_API_KEY"))
-    interaction = client.interactions.create(
+    documents = open_gemini_documents()
+    interaction = documents.client.interactions.create(
         model=MODEL,
         system_instruction=SYSTEM_PROMPT,
         input=question,
-        tools=[{"type": "file_search", "file_search_store_names": [file_search_store.get_or_create_store(client)]}],
+        tools=[{"type": "file_search", "file_search_store_names": [documents.store_name]}],
         store=False,
     )
     answer_lines = []

@@ -1,6 +1,7 @@
 import hashlib
 import re
 import time
+from dataclasses import dataclass
 
 import requests
 from bs4 import BeautifulSoup
@@ -8,6 +9,14 @@ from markdownify import MarkdownConverter
 
 ARTICLES_URL = "https://support.optisigns.com/api/v2/help_center/en-us/articles.json?per_page=100"
 MAX_RETRIES = 5
+
+
+@dataclass(frozen=True)
+class Article:
+    slug: str
+    markdown: str
+    content_hash: str
+    url: str
 
 
 def fetch_published_articles(url=ARTICLES_URL, session=None):
@@ -58,3 +67,8 @@ def article_slug(article):
 
 def content_hash(text):
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def to_article(raw_article):
+    markdown = article_to_markdown(raw_article)
+    return Article(article_slug(raw_article), markdown, content_hash(markdown), raw_article["html_url"])
