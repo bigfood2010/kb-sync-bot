@@ -2,7 +2,7 @@ import json
 import os
 import signal
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
@@ -34,7 +34,7 @@ def scrape_articles_to_markdown():
 
 def build_run_summary(plan, articles):
     return {
-        "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "articles_fetched": len(articles),
         "added": len(plan.added),
         "updated": len(plan.updated),

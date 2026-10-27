@@ -9,6 +9,8 @@ from markdownify import MarkdownConverter
 
 ARTICLES_URL = "https://support.optisigns.com/api/v2/help_center/en-us/articles.json?per_page=100"
 MAX_RETRIES = 5
+IMAGE_FILE_NAME = re.compile(r"[\w.-]+\.(png|jpe?g|gif|webp|svg)", re.IGNORECASE)
+EMPTY_HEADING = re.compile(r"^#{1,6}[ \t]*$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -43,8 +45,11 @@ def _get_page(session, url):
 
 class _HelpCenterConverter(MarkdownConverter):
     def convert_img(self, element, text, parent_tags):
-        if element.get("src", "").startswith("data:"):  # inline base64 carries no text
-            return element.get("alt", "")
+        alt = element.get("alt", "").strip()
+        if not alt or IMAGE_FILE_NAME.fullmatch(alt):  # screenshots without a description add no searchable text
+            return ""
+        if element.get("src", "").startswith("data:"):
+            return alt
         return super().convert_img(element, text, parent_tags)
 
     def convert_iframe(self, element, text, parent_tags):
@@ -57,7 +62,8 @@ def article_to_markdown(article):
     for tag in soup(["script", "style"]):
         tag.decompose()
     converter = _HelpCenterConverter(heading_style="ATX", bullets="-", table_infer_header=True)
-    body = re.sub(r"\n{3,}", "\n\n", converter.convert_soup(soup)).strip()
+    body = EMPTY_HEADING.sub("", converter.convert_soup(soup).replace("\xa0", " "))
+    body = re.sub(r"\n{3,}", "\n\n", body).strip()
     return f"# {article['title']}\n\nArticle URL: {article['html_url']}\n\n{body}\n"
 
 

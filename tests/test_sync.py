@@ -19,13 +19,18 @@ ARTICLE = {
         "<script>alert(1)</script>"
         "<img src='data:image/png;base64,AAAA' alt='QR code'>"
         "<img src='https://cdn.example.com/a.png' alt='screen'>"
+        "<img src='https://cdn.example.com/b.png' alt='mceclip0.png'>"
+        "<img src='https://cdn.example.com/c.png'>"
+        "<h3>&nbsp;</h3><p>Click&nbsp;Save</p>"
     ),
 }
 
 
 def test_markdown_keeps_structure_and_drops_noise():
     markdown = help_center.article_to_markdown(ARTICLE)
-    assert markdown.startswith("# Add a YouTube video\n\nArticle URL: https://support.optisigns.com/hc/en-us/articles/123")
+    assert markdown.startswith(
+        "# Add a YouTube video\n\nArticle URL: https://support.optisigns.com/hc/en-us/articles/123"
+    )
     assert "## Steps" in markdown
     assert "[setup](#setup)" in markdown
     assert "| Key | Value |" in markdown
@@ -34,6 +39,8 @@ def test_markdown_keeps_structure_and_drops_noise():
     assert "alert(1)" not in markdown
     assert "base64" not in markdown and "QR code" in markdown
     assert "![screen](https://cdn.example.com/a.png)" in markdown
+    assert "b.png" not in markdown and "c.png" not in markdown
+    assert "Click Save" in markdown and "\xa0" not in markdown and "\n### \n" not in markdown
 
 
 def test_slug_is_last_url_segment():

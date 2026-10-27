@@ -25,6 +25,7 @@ Tests drive `Store.sync` through an in-memory documents adapter, so the update a
 ## Run
 
 ```bash
+pip install -r requirements.txt pytest                # Python 3.12
 cp .env.sample .env                                   # API_KEY=<Gemini key>
 docker build -t kb-sync-bot . && docker run --rm --env-file .env kb-sync-bot
 python ask.py "How do I add a YouTube video?"
