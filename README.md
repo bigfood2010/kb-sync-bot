@@ -4,21 +4,23 @@ support.optisigns.com → Markdown → Gemini File Search, synced daily by conte
 
 ```text
 main
-  scrape_articles_to_markdown      Zendesk API, all pages, fail on any page error
-    article_to_markdown            # Title + "Article URL:" header, tables/code/links kept
-  read_stored_documents            slug → (sha256, document) from custom metadata
-  build_sync_plan                  added | updated | skipped | deleted
-  apply_sync_plan                  update = upload new, then delete old
-  publish_run_summary              last_run.json → public gist
+  open_gemini_documents          API_KEY → client → store (created on first run)
+  scrape_articles_to_markdown    Zendesk API, all pages → Article records, writes <slug>.md
+  Store(documents).sync(articles)
+    diff by SHA-256              added | updated | skipped | deleted
+    upload, then delete old      one store document per Article
+  publish_run_summary            last_run.json → public gist
 ```
 
 ```text
-help_center.py        scrape + HTML → Markdown
-sync_plan.py          diff logic, chunk estimate
-file_search_store.py  Gemini store I/O
+help_center.py        scrape, HTML → Markdown, Article record
+file_search_store.py  Store (sync rules) + GeminiDocuments adapter
+sync_plan.py          pure diff
 main.py               job entrypoint, 15 min self-timeout
 ask.py                OptiBot over the store
 ```
+
+Tests drive `Store.sync` through an in-memory documents adapter, so the update and delete rules run without Gemini.
 
 ## Run
 

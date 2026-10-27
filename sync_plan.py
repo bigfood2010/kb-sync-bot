@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field
 
-CHARS_PER_TOKEN = 3.5
-
 
 @dataclass
 class SyncPlan:
@@ -9,6 +7,7 @@ class SyncPlan:
     updated: list = field(default_factory=list)
     skipped: list = field(default_factory=list)
     deleted: list = field(default_factory=list)
+    estimated_chunks: int = 0
 
 
 def build_sync_plan(local_hashes, stored_hashes):
@@ -22,10 +21,3 @@ def build_sync_plan(local_hashes, stored_hashes):
             plan.skipped.append(slug)
     plan.deleted = sorted(set(stored_hashes) - set(local_hashes))
     return plan
-
-
-def estimate_chunk_count(markdown, chunk_size, chunk_overlap):
-    tokens = len(markdown) / CHARS_PER_TOKEN
-    if tokens <= chunk_size:
-        return 1
-    return int(-(-(tokens - chunk_overlap) // (chunk_size - chunk_overlap)))

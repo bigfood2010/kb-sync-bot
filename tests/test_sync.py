@@ -3,7 +3,8 @@ import os
 import pytest
 
 import help_center
-from sync_plan import build_sync_plan, estimate_chunk_count
+from file_search_store import Store, StoredDocument
+from help_center import Article
 
 ARTICLE = {
     "title": "Add a YouTube video",
@@ -39,19 +40,67 @@ def test_slug_is_last_url_segment():
     assert help_center.article_slug(ARTICLE) == "123-add-a-youtube-video"
 
 
-def test_sync_plan_puts_each_article_in_one_bucket():
-    plan = build_sync_plan({"a": "1", "b": "2", "c": "3"}, {"b": "2", "c": "old", "gone": "9"})
-    assert (plan.added, plan.updated, plan.skipped, plan.deleted) == (["a"], ["c"], ["b"], ["gone"])
+class InMemoryDocuments:
+    def __init__(self, *documents, fail_upload_for=None):
+        self.documents = {document.name: document for document in documents}
+        self.fail_upload_for = fail_upload_for
+        self.calls = []
+
+    def list(self):
+        return list(self.documents.values())
+
+    def upload(self, article):
+        self.calls.append(("upload", article.slug))
+        if article.slug == self.fail_upload_for:
+            raise RuntimeError("upload failed")
+        name = f"{article.slug}@{article.content_hash}"
+        self.documents[name] = StoredDocument(article.slug, article.content_hash, name)
+
+    def delete(self, name):
+        self.calls.append(("delete", name))
+        del self.documents[name]
 
 
-def test_sync_plan_on_empty_store_adds_everything():
-    plan = build_sync_plan({"a": "1"}, {})
-    assert plan.added == ["a"] and not plan.deleted
+def _article(slug, content_hash, markdown="text"):
+    return Article(slug, markdown, content_hash, f"https://example.com/{slug}")
 
 
-def test_chunk_estimate_matches_worked_examples():
-    assert estimate_chunk_count("x" * 350, 512, 64) == 1          # 100 tokens
-    assert estimate_chunk_count("x" * 3500, 512, 64) == 3         # 1000 tokens: (1000-64)/448 = 2.09, ceil 3
+def _stored(slug, content_hash):
+    return StoredDocument(slug, content_hash, f"{slug}@{content_hash}")
+
+
+def test_sync_adds_updates_skips_and_deletes():
+    documents = InMemoryDocuments(_stored("same", "1"), _stored("changed", "old"), _stored("gone", "9"))
+    plan = Store(documents).sync([_article("same", "1"), _article("changed", "new"), _article("fresh", "2")])
+    assert (plan.added, plan.updated, plan.skipped, plan.deleted) == (["fresh"], ["changed"], ["same"], ["gone"])
+    assert sorted(documents.documents) == ["changed@new", "fresh@2", "same@1"]
+
+
+def test_update_uploads_new_copy_before_deleting_old_one():
+    documents = InMemoryDocuments(_stored("changed", "old"))
+    Store(documents).sync([_article("changed", "new")])
+    assert documents.calls == [("upload", "changed"), ("delete", "changed@old")]
+
+
+def test_failed_upload_keeps_old_copy():
+    documents = InMemoryDocuments(_stored("changed", "old"), fail_upload_for="changed")
+    with pytest.raises(RuntimeError):
+        Store(documents).sync([_article("changed", "new")])
+    assert list(documents.documents) == ["changed@old"]
+
+
+def test_second_sync_of_same_articles_skips_everything():
+    documents = InMemoryDocuments()
+    articles = [_article("a", "1"), _article("b", "2")]
+    Store(documents).sync(articles)
+    plan = Store(documents).sync(articles)
+    assert plan.skipped == ["a", "b"] and not (plan.added or plan.updated or plan.deleted)
+
+
+def test_estimated_chunks_cover_uploaded_articles_only():
+    documents = InMemoryDocuments(_stored("same", "1"))
+    plan = Store(documents).sync([_article("same", "1", "x" * 3500), _article("long", "2", "x" * 3500)])
+    assert plan.estimated_chunks == 3  # 1000 tokens: (1000 - 64) / 448 = 2.09, ceil 3
 
 
 class _FakeResponse:
@@ -89,9 +138,6 @@ def test_fetch_fails_instead_of_returning_partial_list():
 
 @pytest.mark.skipif(not (os.environ.get("API_KEY") or os.environ.get("GEMINI_API_KEY")), reason="no Gemini key")
 def test_live_store_is_reachable():
-    from google import genai
+    from file_search_store import open_gemini_documents
 
-    import file_search_store
-
-    client = genai.Client(api_key=os.environ.get("API_KEY") or os.environ.get("GEMINI_API_KEY"))
-    assert file_search_store.get_or_create_store(client).startswith("fileSearchStores/")
+    assert open_gemini_documents().store_name.startswith("fileSearchStores/")
