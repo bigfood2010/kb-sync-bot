@@ -1,5 +1,6 @@
 import io
 import os
+import sys
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -13,6 +14,7 @@ CHUNK_SIZE_TOKENS = 512
 CHUNK_OVERLAP_TOKENS = 64
 CHARS_PER_TOKEN = 3.5
 POLL_SECONDS = 2
+UPLOAD_TIMEOUT_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -39,16 +41,27 @@ class Store:
             local_hashes=local_hashes,
             stored_hashes={slug: _current_hash(copies, local_hashes.get(slug)) for slug, copies in stored.items()},
         )
+        if len(plan.deleted) * 2 > len(stored):
+            # An empty or broken fetch must not wipe the store.
+            raise RuntimeError(f"Refusing to delete {len(plan.deleted)} of {len(stored)} stored Articles")
         by_slug = {article.slug: article for article in articles}
         for slug in plan.added + plan.updated:
             if deadline is not None and time.monotonic() > deadline:
                 plan.deferred.append(slug)
                 continue
-            self._documents.upload(by_slug[slug])
+            try:
+                self._documents.upload(by_slug[slug])
+            except TimeoutError:
+                raise
+            except Exception as error:
+                print(f"Warning: upload failed for {slug}: {error}", file=sys.stderr)
+                plan.failed.append(slug)
+                continue
             for document in stored[slug]:
                 self._documents.delete(document.name)  # only after the new copy is live
-        plan.added = [slug for slug in plan.added if slug not in plan.deferred]
-        plan.updated = [slug for slug in plan.updated if slug not in plan.deferred]
+        pending = set(plan.deferred + plan.failed)
+        plan.added = [slug for slug in plan.added if slug not in pending]
+        plan.updated = [slug for slug in plan.updated if slug not in pending]
         for slug in plan.skipped:
             # Leftovers of an interrupted update: an extra copy of the same Article.
             duplicates = [document for document in stored[slug] if document.content_hash != local_hashes[slug]]
@@ -95,7 +108,10 @@ class GeminiDocuments:
                 },
             },
         )
+        give_up_at = time.monotonic() + UPLOAD_TIMEOUT_SECONDS
         while not operation.done:
+            if time.monotonic() > give_up_at:
+                raise RuntimeError(f"Upload for {article.slug} still running after {UPLOAD_TIMEOUT_SECONDS} seconds")
             time.sleep(POLL_SECONDS)
             operation = self.client.operations.get(operation)
         if operation.error:
