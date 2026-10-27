@@ -33,6 +33,11 @@ def _get_page(session, url):
 
 
 class _HelpCenterConverter(MarkdownConverter):
+    def convert_img(self, element, text, parent_tags):
+        if element.get("src", "").startswith("data:"):  # inline base64, up to 125 KB on one line
+            return element.get("alt", "")
+        return super().convert_img(element, text, parent_tags)
+
     def convert_iframe(self, element, text, parent_tags):
         source = element.get("src", "")
         return f"\n\n[Embedded content]({source})\n\n" if source else ""

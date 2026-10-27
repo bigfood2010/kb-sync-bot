@@ -28,4 +28,4 @@ def estimate_chunk_count(markdown, chunk_size, chunk_overlap):
     tokens = len(markdown) / CHARS_PER_TOKEN
     if tokens <= chunk_size:
         return 1
-    return -(-(tokens - chunk_overlap) // (chunk_size - chunk_overlap))
+    return int(-(-(tokens - chunk_overlap) // (chunk_size - chunk_overlap)))

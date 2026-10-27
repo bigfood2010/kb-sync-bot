@@ -1,0 +1,24 @@
+name: kb-sync-bot
+jobs:
+  - name: daily-sync
+    kind: SCHEDULED
+    schedule:
+      cron: "0 3 * * *"
+      time_zone: UTC
+    github:
+      repo: bigfood2010/kb-sync-bot
+      branch: develop
+      deploy_on_push: true
+    dockerfile_path: Dockerfile
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    instance_count: 1
+    envs:
+      - key: API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GIST_ID
+        scope: RUN_TIME
+        value: 4b0d782f317072fcc0b69381125bded8
+      - key: GIST_TOKEN
+        scope: RUN_TIME
+        type: SECRET

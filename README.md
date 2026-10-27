@@ -42,9 +42,25 @@ First full load (415 articles) exceeds 15 min on free tier: run once with `TIMEO
 | Delete | only after every page fetched | Partial fetch must not look like deletions |
 | Host | DigitalOcean App Platform scheduled job, smallest size | ≈$0.05/month worst case |
 
+## Evidence
+
+First load: 415 articles, 411 then 4 (one article carried a 125 KB inline base64 image, now dropped). Re-run on unchanged content:
+
+```json
+{ "articles_fetched": 415, "added": 0, "updated": 0, "skipped": 415, "deleted": 0, "files_embedded": 0 }
+```
+
+`pytest -q`: 8 passed (live store test runs when `API_KEY` is set).
+
 ## Logs
 
 Daily run summary: https://gist.github.com/bigfood2010/4b0d782f317072fcc0b69381125bded8 (revisions = history)
+
+## Assistant
+
+System prompt set verbatim in Google AI Studio and in `ask.py`. The AI Studio Playground offers no File Search tool, so the store is queried through the API.
+
+![OptiBot system instructions in AI Studio](docs/ai-studio-system-prompt.png)
 
 ## Sample answer
 

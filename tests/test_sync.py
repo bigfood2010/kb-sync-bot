@@ -16,6 +16,8 @@ ARTICLE = {
         "<pre><code>docker run app</code></pre>"
         "<iframe src='https://www.youtube.com/embed/x'></iframe>"
         "<script>alert(1)</script>"
+        "<img src='data:image/png;base64,AAAA' alt='QR code'>"
+        "<img src='https://cdn.example.com/a.png' alt='screen'>"
     ),
 }
 
@@ -29,6 +31,8 @@ def test_markdown_keeps_structure_and_drops_noise():
     assert "docker run app" in markdown and "```" in markdown
     assert "[Embedded content](https://www.youtube.com/embed/x)" in markdown
     assert "alert(1)" not in markdown
+    assert "base64" not in markdown and "QR code" in markdown
+    assert "![screen](https://cdn.example.com/a.png)" in markdown
 
 
 def test_slug_is_last_url_segment():
