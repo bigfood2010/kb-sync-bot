@@ -40,7 +40,7 @@ Full first load (415 articles) takes longer than 15 min: run it once with `TIMEO
 
 | | Choice |
 |---|---|
-| Store | Gemini File Search, answers with `gemini-3.8-flash` (follows the "Article URL:" citation rule. `MODEL` overrides it) |
+| Store | Gemini File Search, answers with `gemini-3.1-flash-lite` (`MODEL` overrides it) |
 | Chunking | Whitespace chunks of 512 tokens, 64 overlap. Median article ≈1,140 tokens, so 2–3 chunks per article and one how-to section per chunk |
 | Chunk count | Gemini reports none, so `chunks_embedded_estimated` = characters / 3.5 |
 | Delta | SHA-256 of the Markdown. Deletes run only after every page was fetched |
